@@ -1,9 +1,13 @@
+import tempfile
 from abc import ABC, abstractmethod
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from enum import Enum
 from functools import cached_property
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, Generic, Optional, TypeVar, cast
 
+from dagster_shared import check
 from dagster_shared.serdes.serdes import PackableValue, deserialize_value, serialize_value
 
 from dagster._core.definitions.assets.definition.cacheable_assets_definition import (
@@ -13,7 +17,9 @@ from dagster._core.definitions.definitions_class import Definitions
 from dagster._core.definitions.metadata.metadata_value import (
     CodeLocationReconstructionMetadataValue,
 )
-from dagster._core.errors import DagsterInvariantViolationError
+from dagster._core.errors import DagsterInvalidInvocationError, DagsterInvariantViolationError
+from dagster._core.storage.defs_state.base import DefsStateStorage
+from dagster._core.storage.defs_state.defs_state_info import DefsStateInfo
 
 if TYPE_CHECKING:
     from dagster._core.definitions.repository_definition import RepositoryLoadData
@@ -51,17 +57,39 @@ class DefinitionsLoadContext:
         self,
         load_type: DefinitionsLoadType,
         repository_load_data: Optional["RepositoryLoadData"] = None,
+        state_info: Optional[DefsStateInfo] = None,
     ):
         self._load_type = load_type
         self._repository_load_data = repository_load_data
         self._pending_reconstruction_metadata = {}
+        self._state_info = state_info
+        if state_info is not None:
+            check.param_invariant(
+                load_type == DefinitionsLoadType.INITIALIZATION,
+                "state_info can only be set during initialization",
+            )
+            # when the state versions are passed in during INITIALIZATION, we add them to the
+            # pending reconstruction metadata so that we can guarantee that they will be available
+            # during reconstruction
+            self._pending_reconstruction_metadata = {
+                k: v.version for k, v in state_info.info_mapping.items()
+            }
 
     @classmethod
     def get(cls) -> "DefinitionsLoadContext":
         """Get the current DefinitionsLoadContext. If it has not been set, the
-        context is assumed to be initialization.
+        context is assumed to be in initialization, and the state versions are
+        set to the latest available versions.
         """
-        return DefinitionsLoadContext._instance or cls(load_type=DefinitionsLoadType.INITIALIZATION)
+        if DefinitionsLoadContext._instance is not None:
+            return DefinitionsLoadContext._instance
+        else:
+            state_storage = DefsStateStorage.get_current()
+            state_info = state_storage.get_latest_defs_state_info() if state_storage else None
+            return cls(
+                load_type=DefinitionsLoadType.INITIALIZATION,
+                state_info=state_info,
+            )
 
     @classmethod
     def set(cls, instance: "DefinitionsLoadContext") -> None:
@@ -117,6 +145,33 @@ class DefinitionsLoadContext:
             if self._repository_load_data
             else {}
         )
+
+    def _get_state_version(self, key: str) -> Optional[str]:
+        if self.load_type == DefinitionsLoadType.RECONSTRUCTION:
+            # in RECONSTRUCTION mode, state versions are set in the reconstruction metadata
+            return self.reconstruction_metadata.get(key)
+        else:
+            # in INITIALIZATION mode, state versions are set directly
+            return self._state_info.get_version(key) if self._state_info else None
+
+    @contextmanager
+    def temp_state_path(self, key: str) -> Iterator[Optional[Path]]:
+        """Context manager that creates a temporary path to hold local state for a component."""
+        state_storage = DefsStateStorage.get_current()
+        if state_storage is None:
+            raise DagsterInvalidInvocationError(
+                "Attempted to get a temp state path without a StateStorage in context. "
+                "This is likely the result of an internal framework error."
+            )
+        # if no state has ever been written for this key, we return None to indicate that no state is available
+        version = self._get_state_version(key)
+        if version is None:
+            yield None
+            return
+        with tempfile.TemporaryDirectory() as temp_dir:
+            state_path = Path(temp_dir) / key
+            state_storage.download_state_to_path(key, version, state_path)
+            yield state_path
 
 
 TState = TypeVar("TState", bound=PackableValue)
