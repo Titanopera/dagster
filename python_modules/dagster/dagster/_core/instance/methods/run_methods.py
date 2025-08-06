@@ -36,6 +36,7 @@ if TYPE_CHECKING:
     from dagster._core.storage.dagster_run import DagsterRunStatsSnapshot
     from dagster._core.storage.event_log import EventLogStorage
     from dagster._core.storage.runs import RunStorage
+    from dagster._core.workspace.context import BaseWorkspaceRequestContext
 
 
 class RunMethods:
@@ -188,6 +189,7 @@ class RunMethods:
     def create_reexecuted_run(
         self,
         *,
+        request_context: "BaseWorkspaceRequestContext",
         parent_run: DagsterRun,
         code_location: "CodeLocation",
         remote_job: "RemoteJob",
