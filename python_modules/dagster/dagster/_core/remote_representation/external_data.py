@@ -98,6 +98,7 @@ from dagster._core.origin import RepositoryPythonOrigin
 from dagster._core.snap import JobSnap
 from dagster._core.snap.mode import ResourceDefSnap, build_resource_def_snap
 from dagster._core.storage.io_manager import IOManagerDefinition
+from dagster._core.storage.state.state_versions import StateVersions
 from dagster._core.storage.tags import COMPUTE_KIND_TAG, TAGS_INCLUDE_IN_REMOTE_JOB_REF
 from dagster._core.utils import is_valid_email
 from dagster._record import IHaveNew, record, record_custom
@@ -120,7 +121,8 @@ SYSTEM_METADATA_KEY_ASSET_EXECUTION_TYPE = "dagster/asset_execution_type"
 
 
 @whitelist_for_serdes(
-    storage_name="ExternalPresetData", storage_field_names={"op_selection": "solid_selection"}
+    storage_name="ExternalPresetData",
+    storage_field_names={"op_selection": "solid_selection"},
 )
 @record_custom
 class PresetSnap(IHaveNew):
@@ -241,7 +243,10 @@ class JobRefSnap:
 
 @whitelist_for_serdes(
     storage_name="ExternalScheduleData",
-    storage_field_names={"job_name": "pipeline_name", "op_selection": "solid_selection"},
+    storage_field_names={
+        "job_name": "pipeline_name",
+        "op_selection": "solid_selection",
+    },
     skip_when_empty_fields={"default_status"},
 )
 @record_custom
@@ -345,7 +350,10 @@ class ScheduleExecutionErrorSnap:
 
 @whitelist_for_serdes(
     storage_name="ExternalTargetData",
-    storage_field_names={"job_name": "pipeline_name", "op_selection": "solid_selection"},
+    storage_field_names={
+        "job_name": "pipeline_name",
+        "op_selection": "solid_selection",
+    },
 )
 @record
 class TargetSnap:
@@ -371,7 +379,10 @@ class SensorMetadataSnap:
 
 @whitelist_for_serdes(
     storage_name="ExternalSensorData",
-    storage_field_names={"job_name": "pipeline_name", "op_selection": "solid_selection"},
+    storage_field_names={
+        "job_name": "pipeline_name",
+        "op_selection": "solid_selection",
+    },
     skip_when_empty_fields={"default_status", "sensor_type"},
 )
 @record_custom
@@ -458,7 +469,9 @@ class SensorSnap(IHaveNew):
         if sensor_def.asset_selection is not None:
             target_dict = {
                 base_asset_job_name: TargetSnap(
-                    job_name=base_asset_job_name, mode=DEFAULT_MODE_NAME, op_selection=None
+                    job_name=base_asset_job_name,
+                    mode=DEFAULT_MODE_NAME,
+                    op_selection=None,
                 )
                 for base_asset_job_name in repository_def.get_implicit_asset_job_names()
             }
@@ -768,7 +781,10 @@ class ResourceSnap(IHaveNew):
             config_schema_snap=config_schema_snap,
             nested_resources=dict(
                 check.opt_mapping_param(
-                    nested_resources, "nested_resources", key_type=str, value_type=NestedResource
+                    nested_resources,
+                    "nested_resources",
+                    key_type=str,
+                    value_type=NestedResource,
                 )
             ),
             parent_resources=dict(
@@ -1029,7 +1045,8 @@ class AssetNodeSnap(IHaveNew):
         owners: Optional[Sequence[str]] = None,
     ):
         metadata = normalize_metadata(
-            check.opt_mapping_param(metadata, "metadata", key_type=str), allow_invalid=True
+            check.opt_mapping_param(metadata, "metadata", key_type=str),
+            allow_invalid=True,
         )
 
         # backcompat logic for execution type specified via metadata
@@ -1176,7 +1193,9 @@ def _get_resource_job_usage(job_defs: Sequence[JobDefinition]) -> ResourceJobUsa
     return resource_job_usage_map
 
 
-def asset_check_node_snaps_from_repo(repo: RepositoryDefinition) -> Sequence[AssetCheckNodeSnap]:
+def asset_check_node_snaps_from_repo(
+    repo: RepositoryDefinition,
+) -> Sequence[AssetCheckNodeSnap]:
     job_names_by_check_key: dict[AssetCheckKey, list[str]] = defaultdict(list)
 
     for job_def in repo.get_all_jobs():
@@ -1292,7 +1311,8 @@ def asset_node_snaps_from_repo(repo: RepositoryDefinition) -> Sequence[AssetNode
                 asset_key=key,
                 parent_edges=[
                     AssetParentEdgeSnap(
-                        parent_asset_key=pk, partition_mapping=partition_mappings.get(pk)
+                        parent_asset_key=pk,
+                        partition_mapping=partition_mappings.get(pk),
                     )
                     for pk in sorted(asset_node.parent_keys)
                 ],
@@ -1468,7 +1488,9 @@ def _extract_safe(serialized_job_data: str):
 DISABLE_FAST_EXTRACT_ENV_VAR = "DAGSTER_DISABLE_JOB_SNAP_FAST_EXTRACT"
 
 
-def extract_serialized_job_snap_from_serialized_job_data_snap(serialized_job_data_snap: str):
+def extract_serialized_job_snap_from_serialized_job_data_snap(
+    serialized_job_data_snap: str,
+):
     # utility used by DagsterCloudAgent to extract JobSnap out of JobDataSnap
     # efficiently and safely
     if not serialized_job_data_snap.startswith(get_prefix_for_a_serialized(JobDataSnap)):
@@ -1537,6 +1559,7 @@ class ComponentTreeSnap:
     skip_when_empty_fields={
         "pools",
         "component_tree",
+        "state_versions",
     },
 )
 @record_custom
@@ -1553,6 +1576,7 @@ class RepositorySnap(IHaveNew):
     metadata: Optional[MetadataMapping]
     utilized_env_vars: Optional[Mapping[str, Sequence[EnvVarConsumer]]]
     component_tree: Optional[ComponentTreeSnap]
+    state_versions: Optional[StateVersions]
 
     def __new__(
         cls,
@@ -1568,6 +1592,7 @@ class RepositorySnap(IHaveNew):
         metadata: Optional[MetadataMapping] = None,
         utilized_env_vars: Optional[Mapping[str, Sequence[EnvVarConsumer]]] = None,
         component_tree: Optional[ComponentTreeSnap] = None,
+        state_versions: Optional[StateVersions] = None,
     ):
         return super().__new__(
             cls,
@@ -1583,6 +1608,7 @@ class RepositorySnap(IHaveNew):
             metadata=metadata or {},
             utilized_env_vars=utilized_env_vars,
             component_tree=component_tree,
+            state_versions=state_versions,
         )
 
     @classmethod
@@ -1706,6 +1732,9 @@ class RepositorySnap(IHaveNew):
                 for env_var, res_names in repository_def.get_env_vars_by_top_level_resource().items()
             },
             component_tree=component_snap,
+            state_versions=repository_def.repository_load_data.get_state_versions()
+            if repository_def.repository_load_data
+            else None,
         )
 
     def has_job_data(self):

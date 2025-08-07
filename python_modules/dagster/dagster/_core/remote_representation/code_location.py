@@ -47,6 +47,7 @@ from dagster._core.remote_representation.external_data import (
 from dagster._core.remote_representation.grpc_server_registry import GrpcServerRegistry
 from dagster._core.remote_representation.handle import JobHandle, RepositoryHandle
 from dagster._core.snap.execution_plan_snapshot import snapshot_from_execution_plan
+from dagster._core.storage.state.state_versions import StateVersions
 from dagster._grpc.impl import (
     get_external_schedule_execution,
     get_external_sensor_execution,
@@ -109,6 +110,17 @@ class CodeLocation(AbstractContextManager):
     @property
     def name(self) -> str:
         return self.origin.location_name
+
+    def get_state_versions(self) -> Optional[StateVersions]:
+        # generally, if you have state versions, you'll only have one repo
+        version_info = {}
+        for repo in self.get_repositories().values():
+            state_versions = repo.repository_snap.state_versions
+            if state_versions:
+                version_info.update(state_versions.version_info)
+        if version_info:
+            return StateVersions(version_info=version_info)
+        return None
 
     @abstractmethod
     def get_execution_plan(

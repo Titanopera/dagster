@@ -1,6 +1,7 @@
 from collections.abc import Iterable, Mapping, Sequence
 from typing import TYPE_CHECKING, AbstractSet, Any, NamedTuple, Optional  # noqa: UP035
 
+from dagster_shared.serdes.serdes import deserialize_value
 from dagster_shared.utils.hash import hash_collection
 
 import dagster._check as check
@@ -28,6 +29,7 @@ from dagster._core.definitions.source_asset import SourceAsset
 from dagster._core.definitions.utils import check_valid_name
 from dagster._core.errors import DagsterInvariantViolationError
 from dagster._core.instance import DagsterInstance
+from dagster._core.storage.state.state_versions import StateVersions
 from dagster._serdes import whitelist_for_serdes
 from dagster._utils.cached_method import cached_method
 
@@ -44,7 +46,10 @@ class RepositoryLoadData(
     NamedTuple(
         "_RepositoryLoadData",
         [
-            ("cacheable_asset_data", Mapping[str, Sequence[AssetsDefinitionCacheableData]]),
+            (
+                "cacheable_asset_data",
+                Mapping[str, Sequence[AssetsDefinitionCacheableData]],
+            ),
             ("reconstruction_metadata", Mapping[str, Any]),
         ],
     )
@@ -90,6 +95,12 @@ class RepositoryLoadData(
             cacheable_asset_data=self.cacheable_asset_data,
             reconstruction_metadata=reconstruction_metadata,
         )
+
+    def get_state_versions(self) -> Optional[StateVersions]:
+        serialized_state_versions = self.reconstruction_metadata.get("STATE_VERSIONS")
+        if serialized_state_versions:
+            return deserialize_value(serialized_state_versions.value, StateVersions)
+        return None
 
 
 @public
@@ -308,7 +319,9 @@ class RepositoryDefinition:
 
     @public
     @property
-    def asset_checks_defs_by_key(self) -> Mapping[AssetCheckKey, "AssetChecksDefinition"]:
+    def asset_checks_defs_by_key(
+        self,
+    ) -> Mapping[AssetCheckKey, "AssetChecksDefinition"]:
         """Mapping[AssetCheckKey, AssetChecksDefinition]: The assets checks defined in the repository."""
         return self._repository_data.get_asset_checks_defs_by_key()
 
