@@ -1,11 +1,13 @@
+import asyncio
 import json
 import tempfile
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Literal, Optional
 
 import click
+from dagster._cli.utils import get_possibly_temporary_instance_for_cli
 from dagster_dg_core.component import EnvRegistry, all_components_schema_from_dg_context
 from dagster_dg_core.config import (
     DgRawBuildConfig,
@@ -27,8 +29,12 @@ from dagster_dg_core.utils.editor import (
 )
 from dagster_dg_core.utils.telemetry import cli_telemetry_wrapper
 from dagster_shared import check
+from dagster_shared.record import record
 from dagster_shared.serdes.objects import EnvRegistryKey
 from packaging.version import Version
+
+if TYPE_CHECKING:
+    from dagster.components.component.state_backed_component import StateBackedComponent
 
 DEFAULT_SCHEMA_FOLDER_NAME = ".dg"
 
@@ -258,3 +264,107 @@ def create_temp_dagster_cloud_yaml_file(dg_context: DgContext, statedir: str) ->
         yaml.dump({"locations": entries}, temp_dagster_cloud_yaml_file)
         temp_dagster_cloud_yaml_file.flush()
         return temp_dagster_cloud_yaml_file.name
+
+
+@record
+class ComponentStateRefreshStatus:
+    status: Literal["updating", "success", "error"]
+    error: Optional[Exception] = None
+
+
+def _update_display(
+    statuses: dict[str, ComponentStateRefreshStatus], initial: bool = False
+) -> None:
+    import sys
+
+    if not initial:
+        # Move cursor up to overwrite previous output
+        lines_to_clear = len(statuses) + 1  # +1 for header line
+        click.echo(f"\033[{lines_to_clear}A", nl=False)
+
+    # Clear from cursor to end of screen
+    click.echo("\033[0J", nl=False)
+
+    click.echo(click.style(f"Refreshing {len(statuses)} components:", bold=True))
+    for key, status in statuses.items():
+        if status.status == "updating":
+            click.echo(f"  {click.style(key, fg='yellow')}: {click.style('updating', fg='yellow')}")
+        elif status.status == "success":
+            click.echo(
+                f"  {click.style(key, fg='green')}: {click.style('success', fg='green', bold=True)}"
+            )
+        elif status.status == "error":
+            click.echo(
+                f"  {click.style(key, fg='red')}: {click.style('error', fg='red', bold=True)}"
+            )
+
+    sys.stdout.flush()
+
+
+async def _refresh_component(
+    component: "StateBackedComponent", statuses: dict[str, ComponentStateRefreshStatus]
+) -> None:
+    key = component.get_state_key()
+    try:
+        await component.refresh_state()
+        statuses[key] = ComponentStateRefreshStatus(status="success")
+        _update_display(statuses)
+    except Exception as e:
+        statuses[key] = ComponentStateRefreshStatus(status="error", error=e)
+        _update_display(statuses)
+
+
+async def _refresh_components_with_display(
+    components: list["StateBackedComponent"],
+    statuses: dict[str, ComponentStateRefreshStatus],
+) -> None:
+    """Refresh all components concurrently with live display updates."""
+    coroutines = [_refresh_component(component, statuses) for component in components]
+    await asyncio.gather(*coroutines)
+
+
+@utils_group.command(name="refresh-component-state", cls=DgClickCommand)
+@dg_path_options
+@dg_global_options
+@cli_telemetry_wrapper
+def refresh_component_state(
+    target_path: Path,
+    **other_opts: object,
+) -> None:
+    """Refresh the component state for the current project."""
+    cli_config = normalize_cli_config(other_opts, click.get_current_context())
+    dg_context = DgContext.for_project_environment(target_path, cli_config)
+
+    from dagster.components.component.state_backed_component import StateBackedComponent
+    from dagster.components.core.component_tree import ComponentTree
+
+    with get_possibly_temporary_instance_for_cli("dg utils refresh-component-state"):
+        tree = ComponentTree.for_project(dg_context.root_path)
+        to_refresh = tree.get_all_components(of_type=StateBackedComponent)
+
+        # Initialize statuses and show initial display
+        statuses = {
+            component.get_state_key(): ComponentStateRefreshStatus(status="updating")
+            for component in to_refresh
+        }
+        _update_display(statuses, initial=True)
+
+        # Run the refresh process with live updates
+        asyncio.run(_refresh_components_with_display(to_refresh, statuses))
+
+        # Check for errors and raise them
+        errors = []
+        for key, status in statuses.items():
+            if status.status == "error" and status.error:
+                errors.append((key, status.error))
+
+        if errors:
+            click.echo("\nErrors occurred during component refresh:")
+            for key, error in errors:
+                click.echo(f"  {key}: {error}")
+
+            # Raise the first error (or you could create a composite error)
+            raise errors[0][1]
+
+        # Show final status
+        click.echo("\nDone!")
