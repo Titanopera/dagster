@@ -1,7 +1,9 @@
+import re
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Annotated
 
-from dagster import AssetSpec, Resolvable
+from dagster import AssetSpec, MetadataValue, Resolvable
 from dagster._core.definitions.definitions_class import Definitions
 from dagster.components.component.component import Component
 from dagster.components.core.context import ComponentLoadContext
@@ -10,11 +12,23 @@ from dagster.components.resolved.model import Resolver
 from dagster.components.scaffold.scaffold import scaffold_with
 
 from dagster_databricks.components.databricks_asset_bundle.databricks_configs import (
+    DatabricksBaseTask,
     DatabricksConfigs,
 )
 from dagster_databricks.components.databricks_asset_bundle.scaffolder import (
     DatabricksAssetBundleScaffolder,
 )
+
+
+def snake_case(name: str) -> str:
+    """Convert a string to snake_case."""
+    # Remove file extension if present
+    name = Path(name).stem
+    # Replace special characters and spaces with underscores
+    name = re.sub(r"[^a-zA-Z0-9]+", "_", name)
+    # Convert CamelCase to snake_case
+    name = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", name)
+    return name.lower().strip("_")
 
 
 def resolve_databricks_configs(context: ResolutionContext, model) -> DatabricksConfigs:
@@ -40,8 +54,24 @@ class DatabricksAssetBundleComponent(Component, Resolvable):
         ),
     ]
 
-    def get_asset_spec(self) -> AssetSpec:
-        raise NotImplementedError()
+    def get_asset_spec(self, task: DatabricksBaseTask) -> AssetSpec:
+        # TODO: support deps
+        # TODO: include compute config metadata
+        # TODO: include job parameters metadata
+        # TODO: include common config metadata
+        # TODO: include table locations metadata
+        return AssetSpec(
+            key=snake_case(task.task_key),
+            description=f"{task.task_key} task from {task.job_name} job",
+            kinds={"databricks", task.task_type},
+            skippable=True,
+            metadata={
+                "task_key": MetadataValue.text(task.task_key),
+                "task_type": MetadataValue.text(task.task_type),
+                "task_config": MetadataValue.json(task.task_config_metadata),
+                **({"libraries": MetadataValue.json(task.libraries)} if task.libraries else {}),
+            },
+        )
 
     def build_defs(self, context: ComponentLoadContext) -> Definitions:
         raise NotImplementedError()
