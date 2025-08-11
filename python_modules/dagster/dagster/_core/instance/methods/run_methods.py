@@ -199,6 +199,7 @@ class RunMethods:
         use_parent_run_tags: bool = False,
     ) -> DagsterRun:
         return self.run_domain.create_reexecuted_run(
+            request_context=request_context,
             parent_run=parent_run,
             code_location=code_location,
             remote_job=remote_job,

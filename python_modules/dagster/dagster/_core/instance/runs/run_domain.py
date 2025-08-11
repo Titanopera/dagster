@@ -103,6 +103,7 @@ class RunDomain:
     ) -> DagsterRun:
         """Create a run with the given parameters."""
         from dagster._core.definitions.asset_key import AssetCheckKey
+        from dagster._core.definitions.assets.graph.remote_asset_graph import RemoteAssetGraph
         from dagster._core.remote_origin import RemoteJobOrigin
         from dagster._core.snap import ExecutionPlanSnapshot, JobSnap
         from dagster._utils.tags import normalize_tags
@@ -212,6 +213,12 @@ class RunDomain:
         check.opt_inst_param(remote_job_origin, "remote_job_origin", RemoteJobOrigin)
         check.opt_inst_param(job_code_origin, "job_code_origin", JobPythonOrigin)
 
+        if isinstance(asset_graph, RemoteAssetGraph):
+            check.invariant(
+                remote_job_origin is not None,
+                "must include a remote job origin when creating a run using a remote asset graph",
+            )
+
         dagster_run = self.construct_run_with_snapshots(
             job_name=job_name,
             run_id=run_id,  # type: ignore  # (possible none)
@@ -236,9 +243,7 @@ class RunDomain:
         dagster_run = self._instance.run_storage.add_run(dagster_run)
 
         if execution_plan_snapshot and not assets_are_externally_managed(dagster_run):
-            self.log_asset_planned_events(
-                dagster_run, execution_plan_snapshot, asset_graph, remote_job_origin
-            )
+            self.log_asset_planned_events(dagster_run, execution_plan_snapshot, asset_graph)
 
         return dagster_run
 
@@ -527,9 +532,7 @@ class RunDomain:
             asset_check_selection=remote_job.asset_check_selection,
             remote_job_origin=remote_job.get_remote_origin(),
             job_code_origin=remote_job.get_python_origin(),
-            asset_graph=code_location.get_repository(
-                remote_job.repository_handle.repository_name
-            ).asset_graph,
+            asset_graph=request_context.asset_graph,
         )
 
     def register_managed_run(
@@ -736,6 +739,10 @@ class RunDomain:
     ) -> Optional["BaseAssetNode"]:
         from dagster._core.definitions.assets.graph.remote_asset_graph import RemoteAssetNode
 
+        # the asset graph may be orkspace-scoped (to take better advantage of request context
+        # caching) or repository-scoped. In most cases it will be a remote asset graph, but in
+        # tests or programatically creating runs from python codes it may be a regular asset graph.
+        # in all cases, return the BaseAssetNode for the supplied asset key if it exists.
         if not asset_graph.has(asset_key):
             return None
         asset_node = asset_graph.get(asset_key)
@@ -750,7 +757,6 @@ class RunDomain:
         dagster_run: DagsterRun,
         execution_plan_snapshot: "ExecutionPlanSnapshot",
         asset_graph: "BaseAssetGraph",
-        remote_job_origin: Optional["RemoteJobOrigin"],
     ) -> None:
         """Moved from DagsterInstance._log_asset_planned_events."""
         from dagster._core.events import DagsterEvent, DagsterEventType
@@ -769,7 +775,6 @@ class RunDomain:
                             step,
                             output,
                             asset_graph,
-                            remote_job_origin,
                         )
 
                     if check.not_none(output.properties).asset_check_key:
@@ -804,7 +809,6 @@ class RunDomain:
         step: "ExecutionStepSnap",
         output: "ExecutionStepOutputSnap",
         asset_graph: "BaseAssetGraph[BaseAssetNode]",
-        remote_job_origin: Optional["RemoteJobOrigin"],
     ) -> None:
         """Moved from DagsterInstance._log_materialization_planned_event_for_asset."""
         from dagster._core.definitions.partitions.context import partition_loading_context
@@ -834,7 +838,9 @@ class RunDomain:
                 )
 
             asset_node = check.not_none(
-                self._get_repo_scoped_asset_node(asset_graph, asset_key, remote_job_origin)
+                self._get_repo_scoped_asset_node(
+                    asset_graph, asset_key, dagster_run.remote_job_origin
+                )
             )
 
             partitions_def = asset_node.partitions_def
