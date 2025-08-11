@@ -1,12 +1,16 @@
+from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from functools import cached_property
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any, Generic, Optional, Union
 
 import yaml
 from dagster import get_dagster_logger
 from dagster._serdes import whitelist_for_serdes
 from dagster_shared.record import IHaveNew, record, record_custom
+from typing_extensions import TypeVar
+
+T_Task = TypeVar("T_Task", bound="DatabricksBaseTask")
 
 logger = get_dagster_logger()
 
@@ -32,9 +36,8 @@ def parse_depends_on(depends_on: Optional[list]) -> list[str]:
     return parsed_depends_on
 
 
-@whitelist_for_serdes
 @record
-class DatabricksNotebookTask:
+class DatabricksBaseTask(ABC, Generic[T_Task]):
     task_key: str
     task_config: Mapping[str, Any]
     task_parameters: Mapping[str, Any]
@@ -43,11 +46,28 @@ class DatabricksNotebookTask:
     libraries: Optional[list[Mapping[str, Any]]] = None
 
     @property
+    @abstractmethod
+    def task_type(self) -> str: ...
+    @cached_property
+    def task_config_metadata(self) -> Mapping[str, Any]:
+        return self._task_config_metadata()
+
+    @abstractmethod
+    def _task_config_metadata(self) -> Mapping[str, Any]: ...
+
+    @classmethod
+    @abstractmethod
+    def from_job_task_config(cls, job_task_config: Mapping[str, Any]) -> T_Task: ...
+
+
+@whitelist_for_serdes
+@record
+class DatabricksNotebookTask(DatabricksBaseTask):
+    @property
     def task_type(self) -> str:
         return "notebook"
 
-    @cached_property
-    def task_config_metadata(self) -> Mapping[str, Any]:
+    def _task_config_metadata(self) -> Mapping[str, Any]:
         task_config_metadata = {}
         notebook_task = self.task_config["notebook_task"]
         task_config_metadata["notebook_path"] = notebook_task.get("notebook_path", "")
@@ -71,20 +91,12 @@ class DatabricksNotebookTask:
 
 @whitelist_for_serdes
 @record
-class DatabricksConditionTask:
-    task_key: str
-    task_config: Mapping[str, Any]
-    task_parameters: Mapping[str, Any]
-    depends_on: list[str]
-    job_name: str
-    libraries: Optional[list[Mapping[str, Any]]] = None
-
+class DatabricksConditionTask(DatabricksBaseTask):
     @property
     def task_type(self) -> str:
         return "condition"
 
-    @cached_property
-    def task_config_metadata(self) -> Mapping[str, Any]:
+    def _task_config_metadata(self) -> Mapping[str, Any]:
         task_config_metadata = {}
         condition_config = self.task_config["condition_task"]
         task_config_metadata["left"] = condition_config.get("left", "")
@@ -110,20 +122,12 @@ class DatabricksConditionTask:
 
 @whitelist_for_serdes
 @record
-class DatabricksSparkPythonTask:
-    task_key: str
-    task_config: Mapping[str, Any]
-    task_parameters: Mapping[str, Any]
-    depends_on: list[str]
-    job_name: str
-    libraries: Optional[list[Mapping[str, Any]]] = None
-
+class DatabricksSparkPythonTask(DatabricksBaseTask):
     @property
     def task_type(self) -> str:
         return "spark_python"
 
-    @cached_property
-    def task_config_metadata(self) -> Mapping[str, Any]:
+    def _task_config_metadata(self) -> Mapping[str, Any]:
         task_config_metadata = {}
         python_config = self.task_config["spark_python_task"]
         task_config_metadata["python_file"] = python_config["python_file"]
@@ -150,20 +154,12 @@ class DatabricksSparkPythonTask:
 
 @whitelist_for_serdes
 @record
-class DatabricksPythonWheelTask:
-    task_key: str
-    task_config: Mapping[str, Any]
-    task_parameters: Mapping[str, Any]
-    depends_on: list[str]
-    job_name: str
-    libraries: Optional[list[Mapping[str, Any]]] = None
-
+class DatabricksPythonWheelTask(DatabricksBaseTask):
     @property
     def task_type(self) -> str:
         return "python_wheel"
 
-    @cached_property
-    def task_config_metadata(self) -> Mapping[str, Any]:
+    def _task_config_metadata(self) -> Mapping[str, Any]:
         task_config_metadata = {}
         wheel_config = self.task_config["python_wheel_task"]
         task_config_metadata["package_name"] = wheel_config["package_name"]
@@ -191,20 +187,12 @@ class DatabricksPythonWheelTask:
 
 @whitelist_for_serdes
 @record
-class DatabricksSparkJarTask:
-    task_key: str
-    task_config: Mapping[str, Any]
-    task_parameters: Mapping[str, Any]
-    depends_on: list[str]
-    job_name: str
-    libraries: Optional[list[Mapping[str, Any]]] = None
-
+class DatabricksSparkJarTask(DatabricksBaseTask):
     @property
     def task_type(self) -> str:
         return "spark_jar"
 
-    @cached_property
-    def task_config_metadata(self) -> Mapping[str, Any]:
+    def _task_config_metadata(self) -> Mapping[str, Any]:
         task_config_metadata = {}
         jar_config = self.task_config["spark_jar_task"]
         task_config_metadata["main_class_name"] = jar_config["main_class_name"]
@@ -229,20 +217,12 @@ class DatabricksSparkJarTask:
 
 @whitelist_for_serdes
 @record
-class DatabricksJobTask:
-    task_key: str
-    task_config: Mapping[str, Any]
-    task_parameters: Mapping[str, Any]
-    depends_on: list[str]
-    job_name: str
-    libraries: Optional[list[Mapping[str, Any]]] = None
-
+class DatabricksJobTask(DatabricksBaseTask):
     @property
     def task_type(self) -> str:
         return "run_job"
 
-    @cached_property
-    def task_config_metadata(self) -> Mapping[str, Any]:
+    def _task_config_metadata(self) -> Mapping[str, Any]:
         task_config_metadata = {}
         task_config_metadata["job_id"] = self.task_config["job_id"]
         task_config_metadata["job_parameters"] = self.task_config.get("job_parameters", {})
