@@ -1,6 +1,6 @@
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 import yaml
 from dagster import get_dagster_logger
@@ -27,7 +27,7 @@ class DatabricksConfigs(IHaveNew):
 
     def __new__(
         cls,
-        databricks_configs_path: str,
+        databricks_configs_path: Union[Path, str],
     ) -> "DatabricksConfigs":
         databricks_configs_path = Path(databricks_configs_path)
         if not databricks_configs_path.exists():
@@ -48,7 +48,8 @@ class DatabricksConfigs(IHaveNew):
             if resource_path.exists():
                 tasks, job_level_parameters = cls._extract_tasks_from_resource(resource_path)
                 all_tasks.extend(tasks)
-                all_job_level_parameters.update(job_level_parameters)
+                if job_level_parameters:
+                    all_job_level_parameters.update(job_level_parameters)
 
         if not all_tasks:
             raise ValueError(f"No tasks found in databricks config: {databricks_configs_path}")
