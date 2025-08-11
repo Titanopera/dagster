@@ -510,6 +510,8 @@ def _load_dg_file_config(path: Path, config_format: Optional[DgConfigFileFormat]
 class _DgConfigValidator:
     def __init__(self, path_prefix: Optional[str]) -> None:
         self.path_prefix = path_prefix
+        # raise_on_first_error being included for now to maintain previous behavior. We may remove
+        # it in the future and always report a composite error raised at the end of validation.
 
     def normalize_deprecated_settings(self, raw_dict: dict[str, Any]) -> None:
         """Normalize deprecated settings to the new format."""
@@ -558,7 +560,7 @@ class _DgConfigValidator:
 
     def _validate_dg_config_file_cli_section(self, section: object) -> None:
         if not isinstance(section, dict):
-            self._raise_mistyped_key_error("tool.dg.cli", get_type_str(dict), section)
+            self._report_mistyped_key_error("tool.dg.cli", get_type_str(dict), section)
         for key, type_ in DgRawCliConfig.__annotations__.items():
             self._validate_file_config_setting(section, key, type_, "cli")
         self._validate_file_config_no_extraneous_keys(
@@ -567,7 +569,7 @@ class _DgConfigValidator:
 
     def _validate_file_config_project_section(self, section: object) -> None:
         if not isinstance(section, dict):
-            self._raise_mistyped_key_error("project", get_type_str(dict), section)
+            self._report_mistyped_key_error("project", get_type_str(dict), section)
         for key, type_ in DgRawProjectConfig.__annotations__.items():
             self._validate_file_config_setting(section, key, type_, "project")
         self._validate_file_config_no_extraneous_keys(
@@ -594,7 +596,7 @@ class _DgConfigValidator:
 
     def _validate_file_config_workspace_section(self, section: object) -> None:
         if not isinstance(section, dict):
-            self._raise_mistyped_key_error("workspace", get_type_str(dict), section)
+            self._report_mistyped_key_error("workspace", get_type_str(dict), section)
         for key, type_ in DgRawWorkspaceConfig.__annotations__.items():
             if key == "projects":
                 self._validate_file_config_setting(section, key, list, "workspace")
@@ -612,7 +614,7 @@ class _DgConfigValidator:
 
     def _validate_file_config_workspace_project_spec(self, section: object, index: int) -> None:
         if not isinstance(section, dict):
-            self._raise_mistyped_key_error(
+            self._report_mistyped_key_error(
                 f"workspace.projects[{index}]", get_type_str(dict), section
             )
         for key, type_ in DgRawWorkspaceProjectSpec.__annotations__.items():
@@ -625,7 +627,7 @@ class _DgConfigValidator:
 
     def _validate_file_config_workspace_scaffold_project_options(self, section: object) -> None:
         if not isinstance(section, dict):
-            self._raise_mistyped_key_error(
+            self._report_mistyped_key_error(
                 "workspace.scaffold_project_options", get_type_str(dict), section
             )
         for key, type_ in DgRawWorkspaceNewProjectOptions.__annotations__.items():
@@ -667,22 +669,22 @@ class _DgConfigValidator:
             full_key = f"{path_prefix}.{key}" if path_prefix else key
             type_str = get_type_str(class_)
             if error_type == "required":
-                self._raise_missing_required_key_error(full_key, type_str)
+                self._report_missing_required_key_error(full_key, type_str)
             if error_type == "mistype":
-                self._raise_mistyped_key_error(full_key, type_str, section[key])
+                self._report_mistyped_key_error(full_key, type_str, section[key])
 
     def _get_full_key(self, key: Optional[str]) -> str:
         if self.path_prefix:
             return f"{self.path_prefix}.{key}" if key else self.path_prefix
         return key if key else "<root>"
 
-    def _raise_missing_required_key_error(self, key: str, type_str: str) -> Never:
+    def _report_missing_required_key_error(self, key: str, type_str: str) -> Never:
         full_key = self._get_full_key(key)
         raise DgValidationError(
             f"Missing required value for `{full_key}`:\n   Expected {type_str}."
         )
 
-    def _raise_mistyped_key_error(self, key: str, type_str: str, value: object) -> Never:
+    def _report_mistyped_key_error(self, key: str, type_str: str, value: object) -> Never:
         full_key = self._get_full_key(key)
         raise DgValidationError(
             f"Invalid value for `{full_key}`:\n    Expected {type_str}, got `{value}`."

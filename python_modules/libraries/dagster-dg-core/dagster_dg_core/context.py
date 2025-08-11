@@ -6,10 +6,11 @@ from functools import cached_property
 from pathlib import Path
 from typing import Any, Final, Optional
 
+import click
 from dagster_shared.record import record
 from dagster_shared.serdes.serdes import whitelist_for_serdes
 from dagster_shared.seven import resolve_module_pattern
-from dagster_shared.utils.config import get_canonical_defs_module_name
+from dagster_shared.utils.config import get_canonical_defs_module_name, get_dg_config_path
 from packaging.version import Version
 from typing_extensions import Self
 
@@ -187,8 +188,12 @@ class DgContext:
         cls,
         path: Path,
         command_line_config: DgRawCliConfig,
+        *,
+        emit_log: bool = False,
     ) -> Self:
         root_config_path = discover_config_file(path)
+        if emit_log:
+            click.echo("Discovered root config file at:\n  " + str(root_config_path))
         workspace_config_path = discover_config_file(
             path, lambda x: bool(x.get("directory_type") == "workspace")
         )
@@ -197,6 +202,8 @@ class DgContext:
         if root_config_path:
             root_path = root_config_path.parent
             root_file_config = load_dg_root_file_config(root_config_path)
+            if emit_log:
+                click.echo("Root config file valid.")
             if workspace_config_path is None:
                 workspace_root_path = None
                 container_workspace_file_config = None
@@ -207,10 +214,16 @@ class DgContext:
                 workspace_root_path = workspace_config_path.parent
                 container_workspace_file_config = None
             else:
+                if emit_log:
+                    click.echo(
+                        "Discovered workspace config file at:\n  " + str(workspace_config_path)
+                    )
                 workspace_root_path = workspace_config_path.parent
                 container_workspace_file_config = load_dg_workspace_file_config(
                     workspace_config_path
                 )
+                if emit_log:
+                    click.echo("Workspace config file valid.")
                 if "cli" in root_file_config:
                     del root_file_config["cli"]
                     # We have to emit this _after_ we merge all configs to ensure we have the right
@@ -224,7 +237,15 @@ class DgContext:
             root_file_config = None
             container_workspace_file_config = None
 
-        user_config = load_dg_user_file_config() if has_dg_user_file_config() else None
+        if has_dg_user_file_config():
+            if emit_log:
+                click.echo("Discovered user config file at:\n  " + str(get_dg_config_path()))
+            user_config = load_dg_user_file_config()
+            if emit_log:
+                click.echo("User config file valid.")
+        else:
+            user_config = None
+
         config = DgConfig.from_partial_configs(
             root_file_config=root_file_config,
             container_workspace_file_config=container_workspace_file_config,

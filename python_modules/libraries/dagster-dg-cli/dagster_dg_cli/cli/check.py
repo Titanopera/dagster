@@ -69,6 +69,30 @@ def check_yaml_command(
             click.get_current_context().exit(1)
 
 
+@check_group.command(name="toml", cls=DgClickCommand)
+@click.option(
+    "--strict",
+    is_flag=True,
+    help="Enable strict validation mode for TOML configuration files.",
+)
+@dg_global_options
+@dg_path_options
+@cli_telemetry_wrapper
+def check_toml_command(
+    strict: bool,
+    target_path: Path,
+    **global_options: object,
+) -> None:
+    """Check TOML configuration files (dg.toml, pyproject.toml) for validity."""
+    cli_config = normalize_cli_config(global_options, click.get_current_context())
+    click.echo("Checking TOML configuration files...")
+
+    # Context construction performs validation of the TOML files
+    DgContext.from_file_discovery_and_command_line_config(target_path, cli_config, emit_log=True)
+
+    click.echo("All TOML configuration files are valid.")
+
+
 @check_group.command(name="defs", cls=DgClickCommand)
 @click.option(
     "--log-level",
