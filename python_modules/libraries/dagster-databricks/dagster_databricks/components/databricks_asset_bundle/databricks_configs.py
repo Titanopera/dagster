@@ -41,24 +41,26 @@ class DatabricksConfigs(IHaveNew):
         includes = databricks_config.get("include", [])
 
         # Parse all included resource files
-        all_tasks = []
-        all_job_level_parameters = {}
+        tasks = []
+        job_level_parameters = {}
         for include_path in includes:
             resource_path = bundle_dir / include_path
             if resource_path.exists():
-                tasks, job_level_parameters = cls._extract_tasks_from_resource(resource_path)
-                all_tasks.extend(tasks)
-                if job_level_parameters:
-                    all_job_level_parameters.update(job_level_parameters)
+                resource_tasks, resource_job_level_parameters = cls._extract_tasks_from_resource(
+                    resource_path
+                )
+                tasks.extend(resource_tasks)
+                if resource_job_level_parameters:
+                    job_level_parameters.update(resource_job_level_parameters)
 
-        if not all_tasks:
+        if not tasks:
             raise ValueError(f"No tasks found in databricks config: {databricks_configs_path}")
 
         return super().__new__(
             cls,
             databricks_configs_path=databricks_configs_path,
-            tasks=all_tasks,
-            job_level_parameters=all_job_level_parameters,
+            tasks=tasks,
+            job_level_parameters=job_level_parameters,
         )
 
     @classmethod
