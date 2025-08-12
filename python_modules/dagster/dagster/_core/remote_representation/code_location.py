@@ -405,6 +405,7 @@ class InProcessCodeLocation(CodeLocation):
 
         self._origin = check.inst_param(origin, "origin", InProcessCodeLocationOrigin)
         self._instance = instance
+        defs_state_storage = instance.defs_state_storage
 
         loadable_target_origin = self._origin.loadable_target_origin
         self._loaded_repositories = LoadedRepositories(
@@ -413,7 +414,9 @@ class InProcessCodeLocation(CodeLocation):
             container_image=self._origin.container_image,
             container_context=self._origin.container_context,
             # for InProcessCodeLocations, we always use the latest available state versions
-            state_info=self._instance.defs_state_storage.get_latest_defs_state_info(),
+            state_info=defs_state_storage.get_latest_defs_state_info()
+            if defs_state_storage
+            else None,
         )
 
         self._repository_code_pointer_dict = self._loaded_repositories.code_pointers_by_repo_name

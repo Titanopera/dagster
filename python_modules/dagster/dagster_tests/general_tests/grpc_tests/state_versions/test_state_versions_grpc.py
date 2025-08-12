@@ -29,6 +29,7 @@ from dagster._grpc.server import wait_for_grpc_server
 from dagster._utils import find_free_port
 from dagster_dg_core.utils import activate_venv
 from dagster_dg_core_tests.utils import ProxyRunner, isolated_example_project_foo_bar
+from dagster_shared import check
 
 from dagster_tests.general_tests.grpc_tests.test_persistent import entrypoints
 
@@ -47,6 +48,7 @@ def test_state_versions_grpc(entrypoint):
         # test instance with run launcher configured for GRPC runs
         dg.instance_for_test() as instance,
     ):
+        state_storage = check.not_none(instance.defs_state_storage)
         # write a local component defs.yaml
         component_dir = project_dir / "src/foo_bar/defs/the_component"
         component_dir.mkdir(parents=True, exist_ok=True)
@@ -64,13 +66,13 @@ def test_state_versions_grpc(entrypoint):
         with tempfile.TemporaryDirectory() as temp_dir:
             p = Path(temp_dir) / "state.json"
             p.write_text("hi")
-            instance.defs_state_storage.upload_state_from_path(
+            state_storage.upload_state_from_path(
                 path=p,
                 key="the_component",
                 version="abcde-12345",
             )
 
-        original_state_versions = instance.defs_state_storage.get_latest_defs_state_info()
+        original_state_versions = state_storage.get_latest_defs_state_info()
         assert original_state_versions and len(original_state_versions.info_mapping) == 1
         assert original_state_versions.get_version("the_component") == "abcde-12345"
 
@@ -78,7 +80,7 @@ def test_state_versions_grpc(entrypoint):
         with tempfile.TemporaryDirectory() as temp_dir:
             p = Path(temp_dir) / "state.json"
             p.write_text("blah")
-            instance.defs_state_storage.upload_state_from_path(
+            state_storage.upload_state_from_path(
                 path=p,
                 key="the_component",
                 version="fghij-67890",

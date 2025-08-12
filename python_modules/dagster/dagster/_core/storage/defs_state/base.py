@@ -1,14 +1,10 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar, Optional
+from typing import ClassVar, Optional
 
 from dagster._core.instance import MayHaveInstanceWeakref, T_DagsterInstance
 from dagster._core.storage.defs_state.defs_state_info import DefsKeyStateInfo, DefsStateInfo
 from dagster._time import get_current_timestamp
-
-if TYPE_CHECKING:
-    from dagster._core.storage.defs_state.run_storage_state_storage import RunStorageStateStorage
-    from dagster._core.storage.runs.base import RunStorage
 
 
 class DefsStateStorage(ABC, MayHaveInstanceWeakref[T_DagsterInstance]):
@@ -20,14 +16,6 @@ class DefsStateStorage(ABC, MayHaveInstanceWeakref[T_DagsterInstance]):
     """
 
     _current: ClassVar[Optional["DefsStateStorage"]] = None
-
-    @staticmethod
-    def from_run_storage(run_storage: "RunStorage") -> "RunStorageStateStorage":
-        from dagster._core.storage.defs_state.run_storage_state_storage import (
-            RunStorageStateStorage,
-        )
-
-        return RunStorageStateStorage(run_storage)
 
     def get_latest_version(self, key: str) -> Optional[str]:
         """Returns the saved state version for the given defs key, if it exists.

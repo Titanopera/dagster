@@ -430,13 +430,7 @@ def schedules_daemon_config() -> Field:
 
 def secrets_loader_config_schema() -> Field:
     return Field(
-        Selector(
-            {
-                # Space to add additional built-in secrets loaders in the future, for now
-                # only custom
-                "custom": Field(configurable_class_schema()),
-            }
-        ),
+        Selector({"upath": Field(configurable_class_schema())}),
         is_required=False,
     )
 
@@ -578,6 +572,7 @@ def dagster_instance_config_schema() -> Mapping[str, Field]:
             is_required=False,
         ),
         "secrets": secrets_loader_config_schema(),
+        "defs_state_storage": config_field_for_configurable_class(),
         "retention": retention_config_schema(),
         "backfills": backfills_daemon_config(),
         "sensors": sensors_daemon_config(),
