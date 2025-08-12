@@ -22,8 +22,8 @@ def load_yaml(path: Path) -> Mapping[str, Any]:
 @record_custom
 class DatabricksConfigs(IHaveNew):
     databricks_configs_path: Path
-    all_tasks: list[Any]
-    all_job_level_parameters: list[Any]
+    tasks: list[Any]
+    job_level_parameters: list[Any]
 
     def __new__(
         cls,
@@ -57,6 +57,8 @@ class DatabricksConfigs(IHaveNew):
         return super().__new__(
             cls,
             databricks_configs_path=databricks_configs_path,
+            tasks=all_tasks,
+            job_level_parameters=all_job_level_parameters,
         )
 
     @classmethod
