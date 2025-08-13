@@ -215,18 +215,20 @@ class MockedCloudCliCommands(NamedTuple):
 def mock_external_dagster_cloud_cli_command() -> Generator[MockedCloudCliCommands, None, None]:
     with (
         patch(
-            "dagster_cloud_cli.commands.ci.init_impl",
+            "dagster_dg_cli.cli.plus.deploy.deploy_session.init_impl",
         ) as mock_init_command,
         patch(
-            "dagster_cloud_cli.commands.ci.build_impl",
+            "dagster_dg_cli.cli.plus.deploy.deploy_session.build_impl",
         ) as mock_build_command,
         patch(
-            "dagster_cloud_cli.commands.ci.deploy_impl",
+            "dagster_dg_cli.cli.plus.deploy.deploy_session.deploy_impl",
         ) as mock_deploy_command,
         patch(
-            "dagster_cloud_cli.commands.ci.set_build_output_impl",
+            "dagster_cloud_cli.commands.ci.set_build_output",
         ) as mock_set_build_output_command,
     ):
+        # Ensure deploy_impl mock returns successfully without checking build state
+        mock_deploy_command.return_value = None
         yield MockedCloudCliCommands(
             init=mock_init_command,
             build=mock_build_command,
@@ -865,9 +867,9 @@ def test_plus_deploy_subcommands(
         assert not result.exit_code, result.output
 
         mocked_cloud_cli_commands.set_build_output.assert_called_once_with(
-            DEFAULT_STATEDIR_PATH,
-            [],
-            "foo",
+            statedir=DEFAULT_STATEDIR_PATH,
+            location_name=[],
+            image_tag="foo",
         )
 
         mocked_cloud_cli_commands.reset_mocks()
@@ -969,9 +971,9 @@ def test_plus_deploy_subcommands_with_location(
         )
         assert not result.exit_code, result.output
         mocked_cloud_cli_commands.set_build_output.assert_called_once_with(
-            DEFAULT_STATEDIR_PATH,
-            ["foo-bar"],
-            "foo",
+            statedir=DEFAULT_STATEDIR_PATH,
+            location_name=["foo-bar"],
+            image_tag="foo",
         )
 
         mocked_cloud_cli_commands.reset_mocks()
