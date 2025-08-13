@@ -318,7 +318,7 @@ build_number = extract_from_url(buildkite_status_url)  # e.g., "131551"
 # STEP 2: Use ONLY the extracted build number for all analysis
 parallel_calls = [
     mcp__buildkite__get_build(build_number=build_number),  # Use extracted number
-    mcp__buildkite__get_jobs(build_number=build_number),   # Use extracted number  
+    mcp__buildkite__get_jobs(build_number=build_number),   # Use extracted number
     mcp__buildkite__list_annotations(build_number=build_number)  # Use extracted number
 ]
 # Execute ALL simultaneously using the EXACT build number from PR status
