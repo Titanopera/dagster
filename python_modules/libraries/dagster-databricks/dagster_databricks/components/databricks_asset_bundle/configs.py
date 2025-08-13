@@ -8,6 +8,7 @@ import yaml
 from dagster import get_dagster_logger
 from dagster._serdes import whitelist_for_serdes
 from dagster_shared.record import IHaveNew, record, record_custom
+from databricks.sdk.service import jobs
 from typing_extensions import TypeVar
 
 T_Task = TypeVar("T_Task", bound="DatabricksBaseTask")
@@ -37,6 +38,54 @@ def parse_depends_on(depends_on: Optional[list]) -> list["DatabricksTaskDependsO
             elif isinstance(dep, str):
                 parsed_depends_on.append(DatabricksTaskDependsOnConfig(task_key=dep), outcome=None)
     return parsed_depends_on
+
+
+def parse_libraries(libraries: Optional[list[Mapping[str, Any]]]) -> list[jobs.compute.Library]:
+    libraries_list = []
+    for lib in libraries or []:
+        if "whl" in lib:
+            libraries_list.append(jobs.compute.Library(whl=lib["whl"]))
+        elif "jar" in lib:
+            libraries_list.append(jobs.compute.Library(jar=lib["jar"]))
+        elif "egg" in lib:
+            libraries_list.append(jobs.compute.Library(egg=lib["egg"]))
+        elif "pypi" in lib:
+            pypi_config = lib["pypi"]
+            # Handle version by combining it with package name
+            package = pypi_config["package"]
+            if "version" in pypi_config:
+                package = f"{package}=={pypi_config['version']}"
+
+            libraries_list.append(
+                jobs.compute.Library(
+                    pypi=jobs.compute.PythonPyPiLibrary(
+                        package=package, repo=pypi_config.get("repo")
+                    )
+                )
+            )
+        elif "maven" in lib:
+            maven_config = lib["maven"]
+            libraries_list.append(
+                jobs.compute.Library(
+                    maven=jobs.compute.MavenLibrary(
+                        coordinates=maven_config["coordinates"],
+                        repo=maven_config.get("repo"),
+                        exclusions=maven_config.get("exclusions", []),
+                    )
+                )
+            )
+        elif "cran" in lib:
+            cran_config = lib["cran"]
+            libraries_list.append(
+                jobs.compute.Library(
+                    cran=jobs.compute.RCranLibrary(
+                        package=cran_config["package"], repo=cran_config.get("repo")
+                    )
+                )
+            )
+        else:
+            logger.log.warning(f"Unknown library type: {lib}")
+    return libraries_list
 
 
 @record
