@@ -8,6 +8,10 @@ from dagster_dg_core.utils import DgClickCommand, DgClickGroup
 from dagster_dg_core.utils.telemetry import cli_telemetry_wrapper
 from dagster_shared.plus.config import DagsterPlusCliConfig
 
+from dagster_dg_cli.cli.plus.api.formatters import format_run_events
+from dagster_dg_cli.utils.plus.gql import RUN_EVENTS_QUERY
+from dagster_dg_cli.utils.plus.gql_client import DagsterPlusGraphQLClient
+
 
 def _get_config_or_error() -> DagsterPlusCliConfig:
     if not DagsterPlusCliConfig.exists():
@@ -81,10 +85,6 @@ def events_run_command(
     run_id: str, event_type: Optional[str], step_key: Optional[str], limit: int, output_json: bool
 ) -> None:
     """Get events for a specific run with filtering options."""
-    from dagster_dg_cli.cli.plus.api.formatters import format_run_events
-    from dagster_dg_cli.utils.plus.gql import RUN_EVENTS_QUERY
-    from dagster_dg_cli.utils.plus.gql_client import DagsterPlusGraphQLClient
-
     config = _get_config_or_error()
 
     try:
