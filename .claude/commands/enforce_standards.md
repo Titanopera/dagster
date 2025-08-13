@@ -11,7 +11,8 @@
 
 **Important**: These commands must be run sequentially, not in parallel. If either command fails due to merge conflicts, abort the entire operation and inform the user that merge conflicts must be resolved manually before running standards enforcement.
 
-**Merge Conflict Detection**: 
+**Merge Conflict Detection**:
+
 - If `gt squash` fails with merge conflicts, abort and tell user to resolve conflicts first
 - If `gt restack` fails with merge conflicts, abort and tell user to resolve conflicts first
 - Only proceed to standards enforcement if both commands succeed without conflicts
@@ -24,9 +25,10 @@ After successful stack preparation, use the Task tool to launch the code-standar
 
 **Task Description**: "Audit changed files for standards compliance"
 
-**Detailed Prompt**: 
+**Detailed Prompt**:
+
 ```
-Please perform a comprehensive audit of all changed files in the current PR against the coding standards defined in CLAUDE.md. 
+Please perform a comprehensive audit of all changed files in the current PR against the coding standards defined in CLAUDE.md.
 
 Focus on:
 1. Files that have been modified in the current branch compared to the base branch
@@ -47,6 +49,7 @@ If no violations are found, confirm that all changed files comply with the proje
 ## Error Handling
 
 If the stack preparation fails:
+
 1. Stop execution immediately
 2. Inform the user about the specific conflict
 3. Provide guidance on resolving the merge conflicts
@@ -55,7 +58,8 @@ If the stack preparation fails:
 ## Success Criteria
 
 The command succeeds when:
+
 1. `gt squash` completes without merge conflicts
-2. `gt restack` completes without merge conflicts  
+2. `gt restack` completes without merge conflicts
 3. Code standards enforcer agent completes its audit
 4. Any identified violations are reported to the user
