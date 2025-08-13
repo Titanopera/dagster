@@ -93,7 +93,7 @@ The following libraries are known to significantly slow down import time and **M
 - `dagster_cloud_cli.*` - Cloud CLI modules with complex dependencies
 - `urllib.request` - Built-in HTTP client with TLS setup
 - `yaml` - YAML parsing with C extensions
-- `typer` - CLI framework with rich dependencies  
+- `typer` - CLI framework with rich dependencies
 - `pydantic` - Data validation with compiled validators
 
 **Example of correct lazy import pattern:**
@@ -107,7 +107,7 @@ def my_command():
     import yaml
     import requests
     from dagster_cloud_cli.commands.ci import deploy_impl
-    
+
     # Use the imports in function body
     config = yaml.safe_load(config_file)
     response = requests.get(api_url)
