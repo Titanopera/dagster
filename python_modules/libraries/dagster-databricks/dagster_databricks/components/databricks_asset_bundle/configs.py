@@ -68,6 +68,10 @@ class DatabricksBaseTask(ABC, Generic[T_Task]):
     @abstractmethod
     def from_job_task_config(cls, job_task_config: Mapping[str, Any]) -> T_Task: ...
 
+    @property
+    @abstractmethod
+    def needs_cluster(self) -> bool: ...
+
 
 @whitelist_for_serdes
 @record
@@ -96,6 +100,10 @@ class DatabricksNotebookTask(DatabricksBaseTask):
             job_name=job_task_config["job_name"],
             libraries=job_task_config.get("libraries"),
         )
+
+    @property
+    def needs_cluster(self) -> bool:
+        return True
 
 
 @whitelist_for_serdes
@@ -128,6 +136,10 @@ class DatabricksConditionTask(DatabricksBaseTask):
             libraries=job_task_config.get("libraries"),
         )
 
+    @property
+    def needs_cluster(self) -> bool:
+        return False
+
 
 @whitelist_for_serdes
 @record
@@ -159,6 +171,10 @@ class DatabricksSparkPythonTask(DatabricksBaseTask):
             job_name=job_task_config["job_name"],
             libraries=job_task_config.get("libraries"),
         )
+
+    @property
+    def needs_cluster(self) -> bool:
+        return True
 
 
 @whitelist_for_serdes
@@ -193,6 +209,10 @@ class DatabricksPythonWheelTask(DatabricksBaseTask):
             libraries=job_task_config.get("libraries"),
         )
 
+    @property
+    def needs_cluster(self) -> bool:
+        return True
+
 
 @whitelist_for_serdes
 @record
@@ -222,6 +242,10 @@ class DatabricksSparkJarTask(DatabricksBaseTask):
             job_name=job_task_config["job_name"],
             libraries=job_task_config.get("libraries"),
         )
+
+    @property
+    def needs_cluster(self) -> bool:
+        return True
 
 
 @whitelist_for_serdes
@@ -254,6 +278,10 @@ class DatabricksJobTask(DatabricksBaseTask):
             job_name=job_task_config["job_name"],
             libraries=job_task_config.get("libraries"),
         )
+
+    @property
+    def needs_cluster(self) -> bool:
+        return False
 
 
 @record_custom
@@ -405,3 +433,8 @@ class CustomConfigs:
         # Load databricks config
         custom_configs = load_yaml(custom_configs_path)
         return cls(**custom_configs)
+
+
+class DatabricksComponentConfigs:
+    databricks_configs: DatabricksConfigs
+    custom_configs: CustomConfigs
