@@ -405,4 +405,3 @@ class CustomConfigs:
         # Load databricks config
         custom_configs = load_yaml(custom_configs_path)
         return cls(**custom_configs)
-

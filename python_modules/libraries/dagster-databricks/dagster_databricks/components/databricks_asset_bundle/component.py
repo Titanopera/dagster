@@ -1,7 +1,7 @@
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Optional
 
 from dagster import AssetExecutionContext, AssetSpec, MetadataValue, Resolvable, multi_asset
 from dagster._core.definitions.definitions_class import Definitions
@@ -12,9 +12,9 @@ from dagster.components.resolved.model import Resolver
 from dagster.components.scaffold.scaffold import scaffold_with
 
 from dagster_databricks.components.databricks_asset_bundle.configs import (
+    CustomConfigs,
     DatabricksBaseTask,
     DatabricksConfigs,
-    CustomConfigs
 )
 from dagster_databricks.components.databricks_asset_bundle.resource import DatabricksWorkspace
 from dagster_databricks.components.databricks_asset_bundle.scaffolder import (
@@ -91,10 +91,7 @@ class DatabricksAssetBundleComponent(Component, Resolvable):
                 "The path to a custom config file that align with databricks_asset_bundle.configs.CustomConfigs. "
                 "Optional"
             ),
-            examples=[
-                "{{ project_root }}/path/to/custom_yml_config_file",
-                None
-            ],
+            examples=["{{ project_root }}/path/to/custom_yml_config_file", None],
         ),
     ]
     workspace: Annotated[
@@ -142,7 +139,9 @@ class DatabricksAssetBundleComponent(Component, Resolvable):
             databricks: DatabricksWorkspace,
         ):
             """Multi-asset that runs multiple notebooks as a single Databricks job."""
-            yield from databricks.submit_and_poll(tasks=self.databricks_configs.tasks, context=context)
+            yield from databricks.submit_and_poll(
+                tasks=self.databricks_configs.tasks, context=context
+            )
 
         return Definitions(
             assets=[multi_notebook_job_asset], resources={"databricks": self.workspace}
