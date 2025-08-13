@@ -11,9 +11,10 @@ from dagster.components.resolved.core_models import ResolutionContext
 from dagster.components.resolved.model import Resolver
 from dagster.components.scaffold.scaffold import scaffold_with
 
-from dagster_databricks.components.databricks_asset_bundle.databricks_configs import (
+from dagster_databricks.components.databricks_asset_bundle.configs import (
     DatabricksBaseTask,
     DatabricksConfigs,
+    CustomConfigs
 )
 from dagster_databricks.components.databricks_asset_bundle.resource import DatabricksWorkspace
 from dagster_databricks.components.databricks_asset_bundle.scaffolder import (
@@ -48,6 +49,16 @@ def resolve_databricks_configs(context: ResolutionContext, model) -> DatabricksC
     )
 
 
+def resolve_custom_configs(context: ResolutionContext, model) -> CustomConfigs:
+    if not isinstance(model, str):
+        return CustomConfigs()
+    return CustomConfigs.from_custom_configs_path(
+        context.resolve_source_relative_path(
+            context.resolve_value(model, as_type=str),
+        )
+    )
+
+
 def resolve_databricks_workspace(context: ResolutionContext, model) -> DatabricksWorkspace:
     args = DatabricksWorkspaceArgs.resolve_from_model(context, model)
     return DatabricksWorkspace(
@@ -59,7 +70,7 @@ def resolve_databricks_workspace(context: ResolutionContext, model) -> Databrick
 @scaffold_with(DatabricksAssetBundleScaffolder)
 @dataclass
 class DatabricksAssetBundleComponent(Component, Resolvable):
-    configs: Annotated[
+    databricks_configs: Annotated[
         DatabricksConfigs,
         Resolver(
             resolve_databricks_configs,
@@ -67,6 +78,21 @@ class DatabricksAssetBundleComponent(Component, Resolvable):
             description="The path to the databricks.yml config file.",
             examples=[
                 "{{ project_root }}/path/to/databricks_yml_config_file",
+            ],
+        ),
+    ]
+    custom_configs: Annotated[
+        CustomConfigs,
+        Resolver(
+            resolve_custom_configs,
+            model_field_type=Optional[str],
+            description=(
+                "The path to a custom config file that align with databricks_asset_bundle.configs.CustomConfigs. "
+                "Optional"
+            ),
+            examples=[
+                "{{ project_root }}/path/to/custom_yml_config_file",
+                None
             ],
         ),
     ]
@@ -107,7 +133,7 @@ class DatabricksAssetBundleComponent(Component, Resolvable):
     def build_defs(self, context: ComponentLoadContext) -> Definitions:
         @multi_asset(
             name="databricks_multi_asset",
-            specs=[self.get_asset_spec(task) for task in self.configs.tasks],
+            specs=[self.get_asset_spec(task) for task in self.databricks_configs.tasks],
             can_subset=True,
         )
         def multi_notebook_job_asset(
@@ -115,7 +141,7 @@ class DatabricksAssetBundleComponent(Component, Resolvable):
             databricks: DatabricksWorkspace,
         ):
             """Multi-asset that runs multiple notebooks as a single Databricks job."""
-            yield from databricks.submit_and_poll(tasks=self.configs.tasks, context=context)
+            yield from databricks.submit_and_poll(tasks=self.databricks_configs.tasks, context=context)
 
         return Definitions(
             assets=[multi_notebook_job_asset], resources={"databricks": self.workspace}
