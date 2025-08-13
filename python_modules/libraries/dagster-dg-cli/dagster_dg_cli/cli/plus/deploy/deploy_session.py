@@ -8,6 +8,15 @@ from typing import Optional
 
 import click
 import dagster_shared.check as check
+from dagster_cloud_cli.commands.ci import (
+    BuildStrategy,
+    build_impl,
+    deploy_impl,
+    init_impl,
+    set_build_output_impl,
+)
+from dagster_cloud_cli.config_utils import get_agent_heartbeat_timeout, get_location_load_timeout
+from dagster_cloud_cli.core.pex_builder import deps
 from dagster_cloud_cli.types import SnapshotBaseDeploymentCondition
 from dagster_dg_core.config import DgRawBuildConfig, merge_build_configs
 from dagster_dg_core.context import DgContext
@@ -57,8 +66,6 @@ def _build_hybrid_image(
     merged_build_config: DgRawBuildConfig,
     workspace_context: Optional[DgContext],
 ) -> None:
-    from dagster_cloud_cli.commands.ci import set_build_output_impl
-
     registry = merged_build_config.get("registry")
 
     if not registry:
@@ -122,8 +129,6 @@ def init_deploy_session(
     status_url: Optional[str],
     snapshot_base_condition: Optional[SnapshotBaseDeploymentCondition],
 ):
-    from dagster_cloud_cli.commands.ci import init_impl
-
     deployment_type = (
         input_deployment_type
         if input_deployment_type
@@ -209,9 +214,6 @@ def _build_artifact_for_project(
     python_version: str,
     workspace_context: Optional[DgContext],
 ):
-    from dagster_cloud_cli.commands.ci import BuildStrategy, build_impl
-    from dagster_cloud_cli.core.pex_builder import deps
-
     merged_build_config: DgRawBuildConfig = merge_build_configs(
         workspace_context.build_config if workspace_context else None,
         dg_context.build_config,
@@ -260,12 +262,6 @@ def _build_artifact_for_project(
 
 
 def finish_deploy_session(dg_context: DgContext, statedir: str, location_names: tuple[str]):
-    from dagster_cloud_cli.commands.ci import deploy_impl
-    from dagster_cloud_cli.config_utils import (
-        get_agent_heartbeat_timeout,
-        get_location_load_timeout,
-    )
-
     deploy_impl(
         statedir=str(statedir),
         location_name=list(location_names),

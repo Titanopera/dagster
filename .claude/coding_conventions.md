@@ -327,4 +327,7 @@ def my_command():
 
 - **NEVER use `__all__` in subpackage `__init__.py` files**
 - **Only use `__all__` in top-level package `__init__.py` files** to define public APIs
+- **For re-exporting symbols in `__init__.py` files**: Use the explicit import pattern `import foo as foo` instead of relying on `__all__`
+  - This makes re-exports explicit and avoids the pitfalls of `__all__` management
+  - Example: `from dagster.submodule import SomeClass as SomeClass`
 - Rely on absolute imports for internal classes and functions
