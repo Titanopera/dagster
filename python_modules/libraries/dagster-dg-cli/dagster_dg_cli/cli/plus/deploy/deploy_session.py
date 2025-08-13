@@ -4,20 +4,14 @@ import subprocess
 import sys
 import uuid
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import click
+
+if TYPE_CHECKING:
+    from dagster_cloud_cli.types import SnapshotBaseDeploymentCondition
+
 import dagster_shared.check as check
-from dagster_cloud_cli.commands.ci import (
-    BuildStrategy,
-    build_impl,
-    deploy_impl,
-    init_impl,
-    set_build_output_impl,
-)
-from dagster_cloud_cli.config_utils import get_agent_heartbeat_timeout, get_location_load_timeout
-from dagster_cloud_cli.core.pex_builder import deps
-from dagster_cloud_cli.types import SnapshotBaseDeploymentCondition
 from dagster_dg_core.config import DgRawBuildConfig, merge_build_configs
 from dagster_dg_core.context import DgContext
 from dagster_dg_core.utils.git import get_local_branch_name
@@ -109,6 +103,9 @@ def _build_hybrid_image(
 
     subprocess.run(push_cmd, check=True)
 
+    # Lazy import to avoid loading dagster_cloud_cli at module import time
+    from dagster_cloud_cli.commands.ci import set_build_output_impl
+
     set_build_output_impl(
         statedir=str(statedir),
         location_name=[dg_context.code_location_name],
@@ -127,7 +124,7 @@ def init_deploy_session(
     commit_hash: Optional[str],
     location_names: tuple[str],
     status_url: Optional[str],
-    snapshot_base_condition: Optional[SnapshotBaseDeploymentCondition],
+    snapshot_base_condition: Optional["SnapshotBaseDeploymentCondition"],
 ):
     deployment_type = (
         input_deployment_type
@@ -144,6 +141,9 @@ def init_deploy_session(
         os.makedirs(statedir)
 
     dagster_cloud_yaml_file = create_temp_dagster_cloud_yaml_file(dg_context, statedir)
+
+    # Lazy import to avoid loading dagster_cloud_cli at module import time
+    from dagster_cloud_cli.commands.ci import init_impl
 
     init_impl(
         statedir=str(statedir),
@@ -243,6 +243,10 @@ def _build_artifact_for_project(
         )
 
     else:
+        # Lazy import to avoid loading dagster_cloud_cli at module import time
+        from dagster_cloud_cli.commands.ci import BuildStrategy, build_impl
+        from dagster_cloud_cli.core.pex_builder import deps
+
         build_impl(
             statedir=str(statedir),
             dockerfile_path=str(dockerfile_path),
@@ -262,6 +266,13 @@ def _build_artifact_for_project(
 
 
 def finish_deploy_session(dg_context: DgContext, statedir: str, location_names: tuple[str]):
+    # Lazy import to avoid loading dagster_cloud_cli at module import time
+    from dagster_cloud_cli.commands.ci import deploy_impl
+    from dagster_cloud_cli.config_utils import (
+        get_agent_heartbeat_timeout,
+        get_location_load_timeout,
+    )
+
     deploy_impl(
         statedir=str(statedir),
         location_name=list(location_names),

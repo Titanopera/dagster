@@ -26,12 +26,13 @@
 
 ## Import Organization
 
-- **ALWAYS use top-level (module-scoped) imports** - avoid function-scoped imports except in very rare cases
+- **ALWAYS use top-level (module-scoped) imports** - avoid function-scoped imports except in specific cases
 - **Acceptable exceptions for function-scoped imports:**
   1. **TYPE_CHECKING blocks**: Imports only needed for type annotations
   2. **Circular import resolution**: When imports would create circular dependencies
   3. **Optional dependencies**: When import failure should be handled gracefully
   4. **Expensive lazy loading**: When imports are computationally expensive and conditionally used
+  5. **Performance-critical lazy imports**: For modules that significantly slow down CLI startup time
 
 - **Examples of correct import patterns:**
 
@@ -71,6 +72,45 @@ def create_job():
     # Import here to avoid circular dependency
     from dagster._core.definitions import JobDefinition
     return JobDefinition(...)
+```
+
+```python
+# ✅ ACCEPTABLE: Performance-critical lazy imports for slow libraries
+@click.command()
+def deploy_command():
+    # Lazy import to avoid slowing CLI startup
+    from dagster_cloud_cli.commands.ci import deploy_impl
+    from dagster_cloud_cli.types import SnapshotBaseDeploymentCondition
+    # ... use imports
+```
+
+### Performance-Critical Libraries
+
+The following libraries are known to significantly slow down import time and **MUST be lazy-loaded** using function-scoped imports when used in CLI commands:
+
+- `jinja2` - Template engine with heavy initialization
+- `requests` - HTTP library with certificate loading
+- `dagster_cloud_cli.*` - Cloud CLI modules with complex dependencies
+- `urllib.request` - Built-in HTTP client with TLS setup
+- `yaml` - YAML parsing with C extensions
+- `typer` - CLI framework with rich dependencies  
+- `pydantic` - Data validation with compiled validators
+
+**Example of correct lazy import pattern:**
+
+```python
+# ✅ GOOD: Lazy import of performance-critical libraries
+@click.command()
+def my_command():
+    """Command that uses expensive libraries."""
+    # Lazy import to avoid loading at CLI startup
+    import yaml
+    import requests
+    from dagster_cloud_cli.commands.ci import deploy_impl
+    
+    # Use the imports in function body
+    config = yaml.safe_load(config_file)
+    response = requests.get(api_url)
 ```
 
 ## Data Structures
