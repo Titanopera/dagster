@@ -6,6 +6,7 @@ from typing import Any, Generic, Optional, Union
 
 import yaml
 from dagster import get_dagster_logger
+from dagster._annotations import preview
 from dagster._serdes import whitelist_for_serdes
 from dagster_shared.record import IHaveNew, record, record_custom
 from databricks.sdk.service import jobs
@@ -419,6 +420,7 @@ class DatabricksJobTask(DatabricksBaseTask):
         )
 
 
+@preview
 @record_custom
 class DatabricksConfigs(IHaveNew):
     databricks_configs_path: Path
@@ -553,6 +555,7 @@ class DatabricksConfigs(IHaveNew):
         return job_parameters
 
 
+@preview
 @record
 class CustomConfigs:
     job_name_prefix: str = "dagster_multi_notebook_job"
