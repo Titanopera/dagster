@@ -90,16 +90,20 @@ Recognize these patterns first for rapid diagnosis:
 
 ## Investigation Workflow (Optimized for Speed)
 
-### Phase 1: Pre-flight Health Check (5-10 seconds)
+### Phase 1: PR Status Check & Build Number Extraction (5-10 seconds)
 
-1. **Quick Branch Check**: Get current branch name with `git branch --show-current`
-2. **Infrastructure Triage**: Count identical failure messages across jobs for early exit detection
+1. **MANDATORY FIRST STEP**: Use `gh pr view --json statusCheckRollup` to get the EXACT failing build number from PR status
+   - **CRITICAL**: Extract build number from Buildkite status check URL (e.g., `"targetUrl":"https://buildkite.com/dagster/dagster-dagster/builds/131551"` → use `131551`)
+   - **NEVER**: Use `mcp__buildkite__list_builds` to guess which build to analyze
+   - **FORBIDDEN**: Assume or approximate build numbers
+   - **EXAMPLE**: If PR shows build 131551 failed, analyze ONLY that build, not 131544 or any other build
+2. **Quick Branch Check**: Get current branch name with `git branch --show-current` for context
 
-### Phase 2: Parallel Data Gathering (10-15 seconds)
+### Phase 2: Targeted Data Gathering (10-15 seconds)
 
-3. **Batch Build Discovery**: Use `mcp__buildkite__list_builds` filtered by current branch
-4. **Parallel Job Analysis**: Call `mcp__buildkite__get_jobs` for ALL failing builds simultaneously using parallel tool calls
-5. **Annotation Harvest**: Use `mcp__buildkite__list_annotations` for pre-processed error summaries
+3. **Exact Build Analysis**: Use the EXTRACTED build number from Phase 1 in ALL subsequent API calls
+4. **Parallel Job Analysis**: Call `mcp__buildkite__get_jobs` for the SPECIFIC failing build only
+5. **Annotation Harvest**: Use `mcp__buildkite__list_annotations` for the SPECIFIC build number
 
 ### Phase 3: Smart Pattern Matching (10-15 seconds)
 
@@ -307,14 +311,17 @@ if need_more_context:
 ### Enhanced Tool Sequencing for Consistency
 
 ```python
-# Optimal parallel call pattern:
+# STEP 1: Extract exact build number from PR status (MANDATORY)
+pr_status = gh_pr_view_json_statusCheckRollup()  # Get failing build number from PR
+build_number = extract_from_url(buildkite_status_url)  # e.g., "131551"
+
+# STEP 2: Use ONLY the extracted build number for all analysis
 parallel_calls = [
-    mcp__buildkite__list_builds(branch=current_branch, perPage=10),
-    mcp__buildkite__get_jobs(build_number=build_id_1),
-    mcp__buildkite__get_jobs(build_number=build_id_2),
-    mcp__buildkite__list_annotations(build_number=latest_build)
+    mcp__buildkite__get_build(build_number=build_number),  # Use extracted number
+    mcp__buildkite__get_jobs(build_number=build_number),   # Use extracted number  
+    mcp__buildkite__list_annotations(build_number=build_number)  # Use extracted number
 ]
-# Execute ALL simultaneously to minimize API round-trips
+# Execute ALL simultaneously using the EXACT build number from PR status
 ```
 
 Your goal is to be a **fast and focused** build failure detective, providing targeted diagnosis and specific fixes that enable immediate problem resolution while preserving maximum context for downstream fix implementation.
