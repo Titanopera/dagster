@@ -52,7 +52,7 @@ deployments = api.list_deployments()  # Returns DeploymentList schema
 When migrating from GraphQL to REST:
 
 1. Keep `api/v1/endpoints/` unchanged
-2. Keep `schemas/` unchanged  
+2. Keep `schemas/` unchanged
 3. Replace `graphql_adapter/` with REST implementation
 4. CLI commands continue working without modification
 

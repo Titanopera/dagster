@@ -21,7 +21,13 @@
 
 **Important**: Run `gt squash` first, then `gt restack` (sequentially), as `gt restack` depends on the result of `gt squash`. The remaining commands can be run in parallel.
 
-Only after confirming the actual repository state should you proceed with the remaining steps.
+**CRITICAL**: If `gt restack` encounters merge conflicts, HALT the entire ai_update_pr process immediately. Do NOT attempt to resolve conflicts automatically. Instead:
+1. Inform the user about the conflict and which files are affected
+2. Tell them to resolve conflicts manually using `gt add -A` and `gt continue` 
+3. Advise them to re-run the ai_update_pr command after resolving conflicts
+4. Do NOT proceed with any further steps until conflicts are resolved
+
+Only after confirming the actual repository state AND successful restack should you proceed with the remaining steps.
 
 ## Step 1: Identify the Previous Branch
 
