@@ -280,33 +280,20 @@ class TimeWindowPartitionsDefinition(PartitionsDefinition, IHaveNew):
         with partition_loading_context(current_time, dynamic_partitions_store):
             current_timestamp = self._get_current_timestamp()
 
-            current_timestamp_end_boundary = current_timestamp
-            if self.end_offset < 0:
-                offset_iter = iter(self._reverse_iterate_time_windows(current_timestamp))
-                for _i in range(-self.end_offset + 1):
-                    current_timestamp_end_boundary = next(offset_iter).end.timestamp()
+            last_partition_window = self._get_last_partition_window(current_timestamp)
+            if not last_partition_window:
+                return []
 
-            partitions_past_current_time = 0
-            partition_keys: list[str] = []
+            partition_keys = []
+
             for time_window in self._iterate_time_windows(self.start_timestamp):
-                if (
-                    self.end_timestamp is not None
-                    and time_window.end.timestamp() > self.end_timestamp
-                ):
-                    break
-                if (
-                    time_window.end.timestamp() <= current_timestamp_end_boundary
-                    or partitions_past_current_time < self.end_offset
-                ):
-                    partition_keys.append(
-                        dst_safe_strftime(
-                            time_window.start, self.timezone, self.fmt, self.cron_schedule
-                        )
+                partition_keys.append(
+                    dst_safe_strftime(
+                        time_window.start, self.timezone, self.fmt, self.cron_schedule
                     )
+                )
 
-                    if time_window.end.timestamp() > current_timestamp:
-                        partitions_past_current_time += 1
-                else:
+                if time_window.start.timestamp() >= last_partition_window.start.timestamp():
                     break
 
             return partition_keys
@@ -626,31 +613,30 @@ class TimeWindowPartitionsDefinition(PartitionsDefinition, IHaveNew):
             return next(iter(self._reverse_iterate_time_windows(current_timestamp)))
 
         last_window_before_end_timestamp = None
+        current_timestamp_window = None
+
         if self.end_timestamp is not None:
             last_window_before_end_timestamp = next(
                 iter(self._reverse_iterate_time_windows(self.end_timestamp))
             )
 
+        current_timestamp_iter = iter(self._reverse_iterate_time_windows(current_timestamp))
+        # first returned time window is the last window <= the current timestamp
+        end_offset_zero_window = next(current_timestamp_iter)
+
         if self.end_offset < 0:
-            current_timestamp_window = None
-            current_timestamp_iter = iter(self._reverse_iterate_time_windows(current_timestamp))
-            for _i in range(-self.end_offset + 1):
+            for _ in range(abs(self.end_offset)):
                 current_timestamp_window = next(current_timestamp_iter)
-
-            assert current_timestamp_window
         else:
-            end_offset_zero_window = next(
-                iter(self._reverse_iterate_time_windows(current_timestamp))
-            )
-
-            current_timestamp_window = None
             current_timestamp_iter = iter(
                 self._iterate_time_windows(end_offset_zero_window.end.timestamp())
             )
             for _i in range(self.end_offset):
                 current_timestamp_window = next(current_timestamp_iter)
 
-            assert current_timestamp_window
+        assert current_timestamp_window, (
+            "current_timestamp_window should not be None if end_offset != 0"
+        )
 
         if (
             last_window_before_end_timestamp
@@ -892,7 +878,11 @@ class TimeWindowPartitionsDefinition(PartitionsDefinition, IHaveNew):
             prev_time = next_time
 
     def _reverse_iterate_time_windows(self, end_timestamp: float) -> Iterable[TimeWindow]:
-        """Returns an infinite generator of time windows that end <= the given end time."""
+        """Returns an infinite generator of time windows that end before the given end timestamp.
+        For example, if you pass in any time on day N (including midnight) for a daily partition
+        with offset 0 bounded at midnight, the first element this iterator will return is
+        [day N-1, day N).
+        """
         iterator = reverse_cron_string_iterator(
             end_timestamp=end_timestamp,
             cron_string=self.cron_schedule,
