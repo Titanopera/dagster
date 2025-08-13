@@ -95,6 +95,12 @@ class DatabricksTaskDependsOnConfig:
 
 
 @record
+class DatabricksTaskDependsOnConfig:
+    task_key: str
+    outcome: Optional[str]
+
+
+@record
 class DatabricksBaseTask(ABC, Generic[T_Task]):
     task_key: str
     task_config: Mapping[str, Any]
