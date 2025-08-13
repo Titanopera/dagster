@@ -424,6 +424,7 @@ class CustomConfigs:
     node_type_id: str = "i3.xlarge"
     num_workers: int = 1
     existing_cluster_id: Optional[str] = None
+    is_serverless: bool = False
 
     @classmethod
     def from_custom_configs_path(cls, custom_configs_path: Union[Path, str]) -> "CustomConfigs":
