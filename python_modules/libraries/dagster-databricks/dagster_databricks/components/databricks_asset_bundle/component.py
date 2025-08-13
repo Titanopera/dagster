@@ -34,7 +34,7 @@ def snake_case(name: str) -> str:
 
 @dataclass
 class DatabricksWorkspaceArgs(Resolvable):
-    """Aligns with DatabricksWorkspace.__new__"""
+    """Aligns with DatabricksWorkspace.__new__."""
 
     host: str
     token: str
